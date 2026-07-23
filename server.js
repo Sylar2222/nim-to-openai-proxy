@@ -86,8 +86,6 @@ const FALLBACK_MODELS = [
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// FIX: Extract token AFTER "Bearer " prefix, compare only the token
-// Prevents bypass when CLIENT_AUTH_KEY is empty (expected would be "Bearer " which is 7 chars)
 function extractBearerToken(authHeader) {
   if (!authHeader || typeof authHeader !== 'string') return null;
   const parts = authHeader.trim().split(' ');
@@ -104,35 +102,17 @@ function safeTimingEqual(a, b) {
   }
 }
 
+// THE GATE IS NOW OPEN! This lets LoreBary slide right through without a password.
 app.use((req, res, next) => {
   if (req.path === '/health' || req.path === '/v1/models') {
     return next();
   }
 
-  const token = extractBearerToken(req.headers.authorization);
-  
-  //if (!token || !CLIENT_AUTH_KEY) {
-    //return res.status(403).json({
-      //error: {
-        //message: 'Forbidden: Invalid or missing authentication',
-        //type: 'authentication_error',
-        //code: 403
-      }
-    });
-  }
-
-  //if (!safeTimingEqual(token, CLIENT_AUTH_KEY)) {
-    //return res.status(403).json({
-      //error: {
-        //message: 'Forbidden: Invalid authentication credentials',
-        //type: 'authentication_error',
-        //code: 403
-      }
-    });
-  }
-
+  // The locks have been completely bypassed here. 
+  // We just wave LoreBary forward directly to the chat function.
   next();
 });
+
 
 // ─── Validation ─────────────────────────────────────────────────────────────
 
