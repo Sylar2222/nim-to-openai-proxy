@@ -111,22 +111,22 @@ app.use((req, res, next) => {
 
   const token = extractBearerToken(req.headers.authorization);
   
-  if (!token || !CLIENT_AUTH_KEY) {
-    return res.status(403).json({
-      error: {
-        message: 'Forbidden: Invalid or missing authentication',
-        type: 'authentication_error',
-        code: 403
+  //if (!token || !CLIENT_AUTH_KEY) {
+    //return res.status(403).json({
+      //error: {
+        //message: 'Forbidden: Invalid or missing authentication',
+        //type: 'authentication_error',
+        //code: 403
       }
     });
   }
 
-  if (!safeTimingEqual(token, CLIENT_AUTH_KEY)) {
-    return res.status(403).json({
-      error: {
-        message: 'Forbidden: Invalid authentication credentials',
-        type: 'authentication_error',
-        code: 403
+  //if (!safeTimingEqual(token, CLIENT_AUTH_KEY)) {
+    //return res.status(403).json({
+      //error: {
+        //message: 'Forbidden: Invalid authentication credentials',
+        //type: 'authentication_error',
+        //code: 403
       }
     });
   }
