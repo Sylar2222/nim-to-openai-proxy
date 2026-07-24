@@ -251,17 +251,28 @@ app.post('/v1/chat/completions', async (req, res) => {
   let upstreamStream = null;
 
   try {
-    // We explicitly pull the model from the request body to set up our fallback chain
-    const primaryModel = MODEL_MAPPING[req.body.model] || 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
+    // 1. We pull only the variables the proxy needs internally so it doesn't crash.
+    const {
+      model,
+      messages,
+      max_tokens,
+      stream
+    } = req.body;
+
+    const primaryModel = MODEL_MAPPING[model] || 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
     const modelChain = [primaryModel, ...FALLBACK_MODELS];
 
-    // THE FIX: We pass the entire raw payload from Janitor/Lorebary directly to NVIDIA,
-    // ensuring no parameters (like repetition penalty or stop sequences) get dropped.
+    // 2. We use ...req.body to pass the ENTIRE payload (Temp, Top P/K, Stop Sequences, Rep Penalty).
+    // Because we don't manually override them, your 0s will pass straight through as 0s.
     const baseRequest = {
-      ...req.body, 
-      max_tokens: typeof req.body.max_tokens === 'number' 
-        ? Math.min(req.body.max_tokens, MAX_TOKENS_LIMIT) 
-        : 2048
+      ...req.body,
+      max_tokens: typeof max_tokens === 'number' 
+        ? Math.min(max_tokens, MAX_TOKENS_LIMIT) 
+        : 2048,
+      stream: stream || false,
+      extra_body: ENABLE_THINKING_MODE
+        ? { chat_template_kwargs: { thinking: true } }
+        : undefined
     };
 
     const { response, model: usedModel } = await callWithFallback(baseRequest, modelChain);
