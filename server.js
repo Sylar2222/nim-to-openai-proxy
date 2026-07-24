@@ -251,34 +251,17 @@ app.post('/v1/chat/completions', async (req, res) => {
   let upstreamStream = null;
 
   try {
-    // We explicitly pull the generation parameters from the request body.
-    const {
-      model,
-      messages,
-      temperature,
-      max_tokens,
-      stream,
-      top_p,
-      top_k,
-      frequency_penalty,
-      presence_penalty,
-      stop
-    } = req.body;
-
-    const primaryModel = MODEL_MAPPING[model] || 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
+    // We explicitly pull the model from the request body to set up our fallback chain
+    const primaryModel = MODEL_MAPPING[req.body.model] || 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
     const modelChain = [primaryModel, ...FALLBACK_MODELS];
 
-    // THE FIX: If the frontend sends zeros, we override them with optimal roleplay defaults.
-    // If it sends valid arrays for stop sequences, we use them. If not, we hardcode the anti-steering safeties.
+    // THE FIX: We pass the entire raw payload from Janitor/Lorebary directly to NVIDIA,
+    // ensuring no parameters (like repetition penalty or stop sequences) get dropped.
     const baseRequest = {
-      messages,
-      temperature: typeof temperature === 'number' ? temperature : 0.8,
-      max_tokens: Math.min(max_tokens ?? 2048, MAX_TOKENS_LIMIT),
-      top_p: typeof top_p === 'number' ? top_p : 0.9,
-      top_k: typeof top_k === 'number' ? top_k : 40,
-      frequency_penalty: frequency_penalty || 0.0,
-      presence_penalty: presence_penalty || 0.0,
-      stop: stop || undefined,
+      ...req.body, 
+      max_tokens: typeof req.body.max_tokens === 'number' 
+        ? Math.min(req.body.max_tokens, MAX_TOKENS_LIMIT) 
+        : 2048
     };
 
     const { response, model: usedModel } = await callWithFallback(baseRequest, modelChain);
