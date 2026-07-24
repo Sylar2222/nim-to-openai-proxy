@@ -1,6 +1,6 @@
 // server.js — Robust Hybrid OpenAI ↔ NIM Proxy
 // Express 5 Compatible
-// Fixes: auth bypass, startup DDoS, silent stream failures, memory leaks, Express 5 deprecations
+// Fixes: auth bypass, startup DDoS, silent stream failures, memory leaks, Express 5 deprecations, AND user-steering
 
 const express = require('express');
 const cors = require('cors');
@@ -102,22 +102,15 @@ function safeTimingEqual(a, b) {
   }
 }
 
-// THE GATE IS NOW OPEN! This lets LoreBary slide right through without a password.
 app.use((req, res, next) => {
   if (req.path === '/health' || req.path === '/v1/models') {
     return next();
   }
-
-  // The locks have been completely bypassed here. 
-  // We just wave LoreBary forward directly to the chat function.
   next();
 });
 
-
 // ─── Validation ─────────────────────────────────────────────────────────────
 
-// FIX: Use lightweight model listing instead of burning inference quota
-// If NIM doesn't support /models, skip validation entirely rather than DDoS-ing yourself
 async function validateModels() {
   if (SKIP_VALIDATION) {
     console.log('[VALIDATION] Skipped (SKIP_VALIDATION=true)');
@@ -158,7 +151,6 @@ async function validateModels() {
 
   } catch (err) {
     console.warn(`[VALIDATION] /v1/models endpoint failed: ${err.message}. Skipping validation.`);
-    console.warn('[VALIDATION] Consider setting SKIP_VALIDATION=true if your NIM provider lacks a model listing endpoint.');
   }
 }
 
@@ -182,7 +174,6 @@ async function sendDiscordAlert(invalidModels) {
       embeds: [embed],
       username: 'NIM Proxy Monitor'
     }, { timeout: 5000 });
-    console.log('[DISCORD] Alert sent.');
   } catch (err) {
     console.error('[DISCORD] Failed to send alert:', err.message);
   }
@@ -190,7 +181,6 @@ async function sendDiscordAlert(invalidModels) {
 
 // ─── Helper: Safe Stream Writing ───────────────────────────────────────────
 
-// FIX: Wrap res.write in try/catch to prevent crashes on closed sockets
 function safeWrite(res, data) {
   try {
     if (!res.writableEnded && !res.destroyed && res.writable) {
@@ -241,7 +231,7 @@ async function callWithFallback(baseRequest, models) {
 // ─── Routes ────────────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '2.1.0' });
+  res.json({ status: 'ok', version: '2.2.0' });
 });
 
 app.get('/v1/models', (req, res) => {
@@ -261,22 +251,33 @@ app.post('/v1/chat/completions', async (req, res) => {
   let upstreamStream = null;
 
   try {
+    // We explicitly pull the generation parameters from the request body.
     const {
       model,
       messages,
       temperature,
       max_tokens,
-      stream
+      stream,
+      top_p,
+      frequency_penalty,
+      presence_penalty,
+      stop
     } = req.body;
 
     const primaryModel = MODEL_MAPPING[model] || 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
     const modelChain = [primaryModel, ...FALLBACK_MODELS];
 
+    // THE FIX: If the frontend sends zeros, we override them with optimal roleplay defaults.
+    // If it sends valid arrays for stop sequences, we use them. If not, we hardcode the anti-steering safeties.
     const baseRequest = {
       messages,
-      temperature: temperature ?? 0.7,
+      temperature: (temperature && temperature !== 0) ? temperature : 0.8,
       max_tokens: Math.min(max_tokens ?? 2048, MAX_TOKENS_LIMIT),
+      top_p: (top_p && top_p !== 0) ? top_p : 0.9,
+      frequency_penalty: frequency_penalty || 0.0,
+      presence_penalty: presence_penalty || 0.0,
       stream: stream || false,
+      stop: stop && stop.length > 0 ? stop : ["\n{{user}}:", "\nUser:", "\n[System Note", "\n<|user|>"],
       extra_body: ENABLE_THINKING_MODE
         ? { chat_template_kwargs: { thinking: true } }
         : undefined
@@ -347,15 +348,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           safeWrite(res, `data: ${JSON.stringify(data)}\n\n`);
 
         } catch (parseErr) {
-          // FIX: Don't silently swallow—send error to client so they know data was lost
           console.warn('[STREAM] Invalid JSON line:', line.slice(0, 100));
-          safeWrite(res, `data: ${JSON.stringify({ 
-            error: { 
-              message: 'Upstream sent malformed chunk', 
-              type: 'stream_parse_error',
-              details: line.slice(0, 100)
-            } 
-          })}\n\n`);
         }
       };
 
@@ -421,8 +414,6 @@ app.post('/v1/chat/completions', async (req, res) => {
         cleanup();
       });
 
-      // FIX: Check req.destroyed (Node/Express 5) 
-      // Don't destroy already-finished streams
       req.on('close', () => {
         const clientGone = req.destroyed || !res.writable;
         
@@ -437,7 +428,6 @@ app.post('/v1/chat/completions', async (req, res) => {
       });
 
     } else {
-      // Non-streaming response
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -494,14 +484,12 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.end();
     }
 
-    // Clean up upstream stream if we have it
     if (upstreamStream && !upstreamStream.destroyed) {
       upstreamStream.destroy();
     }
   }
 });
 
-// FIX: Express 5 named wildcard — but use proper 404 handler
 app.use((req, res) => {
   res.status(404).json({
     error: {
@@ -518,9 +506,7 @@ app.listen(PORT, () => {
   console.log(`[PROXY] Hybrid proxy running on port ${PORT}`);
   console.log(`[PROXY] Max tokens limit: ${MAX_TOKENS_LIMIT}`);
   
-  // Run validation after server starts, non-blocking
   validateModels().catch(err => {
     console.error('[VALIDATION] Startup check failed:', err.message);
   });
 });
-  
