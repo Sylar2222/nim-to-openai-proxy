@@ -270,18 +270,15 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     // THE FIX: If the frontend sends zeros, we override them with optimal roleplay defaults.
     // If it sends valid arrays for stop sequences, we use them. If not, we hardcode the anti-steering safeties.
-   const baseRequest = {
+    const baseRequest = {
       messages,
       temperature: typeof temperature === 'number' ? temperature : 0.8,
       max_tokens: Math.min(max_tokens ?? 2048, MAX_TOKENS_LIMIT),
       top_p: typeof top_p === 'number' ? top_p : 0.9,
       top_k: typeof top_k === 'number' ? top_k : 40,
       frequency_penalty: frequency_penalty || 0.0,
-      stream: stream || false,
-      stop: stop && stop.length > 0 ? stop : ["\n{{user}}:", "\nUser:", "\n[System Note", "\n<|user|>"],
-      extra_body: ENABLE_THINKING_MODE
-        ? { chat_template_kwargs: { thinking: true } }
-        : undefined
+      presence_penalty: presence_penalty || 0.0,
+      stop: stop || undefined,
     };
 
     const { response, model: usedModel } = await callWithFallback(baseRequest, modelChain);
