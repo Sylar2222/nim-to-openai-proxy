@@ -271,9 +271,9 @@ app.post('/v1/chat/completions', async (req, res) => {
     // If it sends valid arrays for stop sequences, we use them. If not, we hardcode the anti-steering safeties.
     const baseRequest = {
       messages,
-      temperature: (temperature && temperature !== 0) ? temperature : 0.8,
+      temperature: typeof temperature === 'number' ? temperature : 0.8,
       max_tokens: Math.min(max_tokens ?? 2048, MAX_TOKENS_LIMIT),
-      top_p: (top_p && top_p !== 0) ? top_p : 0.7,
+      top_p: typeof top_p === 'number' ? top_p : 0.9,
       frequency_penalty: frequency_penalty || 0.0,
       presence_penalty: presence_penalty || 0.0,
       stream: stream || false,
