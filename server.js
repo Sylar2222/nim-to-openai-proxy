@@ -273,7 +273,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages,
       temperature: (temperature && temperature !== 0) ? temperature : 0.8,
       max_tokens: Math.min(max_tokens ?? 2048, MAX_TOKENS_LIMIT),
-      top_p: (top_p && top_p !== 0) ? top_p : 0.0,
+      top_p: (top_p && top_p !== 0) ? top_p : 0.7,
       frequency_penalty: frequency_penalty || 0.0,
       presence_penalty: presence_penalty || 0.0,
       stream: stream || false,
