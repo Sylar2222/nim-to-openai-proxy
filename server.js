@@ -258,8 +258,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       max_tokens,
       stream
     } = req.body;
-
-    const primaryModel = MODEL_MAPPING[model];
+    const primaryModel = MODEL_MAPPING[req.body.model] || 'z-ai/glm-5.2';
     const modelChain = [primaryModel, ...FALLBACK_MODELS];
 
     // 2. We use ...req.body to pass the ENTIRE payload (Temp, Top P/K, Stop Sequences, Rep Penalty).
