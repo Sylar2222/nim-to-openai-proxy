@@ -268,7 +268,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         : 2048,
       stream: stream || false,
       extra_body: ENABLE_THINKING_MODE
-        ? { chat_template_kwargs: { thinking: true } }
+        ? { chat_template_kwargs: { thinking: true, enable_thinking: true } }
         : undefined
     };
 
