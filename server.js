@@ -73,6 +73,10 @@ const MODEL_MAPPING = {
   'step-3.5-flash': 'stepfun-ai/step-3.5-flash',
   'step-3.7-flash': 'stepfun-ai/step-3.7-flash'
 };
+const FALLBACK_MODELS = [
+  'z-ai/glm-5.2',
+];
+
 
 
 // ─── Middleware ─────────────────────────────────────────────────────────────
